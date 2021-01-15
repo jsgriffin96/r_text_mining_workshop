@@ -1,0 +1,92 @@
+---
+title: "Text Mining in R"
+author: "Jarrod Griffin"
+date: "1/14/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Importing Data
+
+Tweets from the CCIDM Twitter page (<https://twitter.com/CPP_CCIDM>) were downloaded using the snscrape python package. Data was in the 'json' format, so we need to use the 'rjson' package to import it. All hashtags and mentions were removed manually. I will also generate IDs for each tweet.
+
+```{r importing_data, message=FALSE}
+#install.packages("rjson")
+#install.packages('tidyverse')
+#install.packages('tidytext')
+library('rjson')
+library('tidyverse')
+library('tidytext')
+
+tweets <- fromJSON(file = 'CCIDM_tweets.json') %>%
+  as_tibble() %>%           #tidytext package uses tibbles
+  cbind(tweet_id = 31:1)    #generate IDs (tweets are in reverse chronological order)
+
+head(tweets)
+```
+
+## Tidy Text Format and Tokenization
+
+The tidy text format takes after Hadley Wickham's definition of tidy data, which is that:
+
+* Each variable is a column
+* Each observation is a row
+* Each type of observational unit is a table
+
+Tidy text is defined as a **table with one token per row**.
+
+A token is defined as a **meaningful unit of text such as a word, sentence, paragraph or n-gram**.
+
+The process of splitting the text up into tokens is called **tokenization**, and can be done by using the *unnest_tokens()* function.
+
+```{r tokenization}
+tokenized_tweets <- unnest_tokens(tweets, input = 'tweet', output = 'word')
+head(tokenized_tweets)
+```
+```{r tokenization - word count plot}
+tokenized_tweets %>%
+  count(word, sort = TRUE) %>%
+  rename(count = n) %>%
+  filter(count > 5) %>%
+  mutate(word = reorder(word, count)) %>%
+  ggplot(aes(x = count, y = word)) + 
+    geom_col()  + 
+    labs(title = "Count of Words in CCIDM Tweets") + 
+    scale_x_continuous(breaks = seq(0, 50, 5))
+```
+
+As you can see from the graph above, many of the words do not add value to our analysis. Words like "the", "and", or "to" are known as **stop words**. We will remove these stop words by calling the *anti_join(stop_words)* line of code. As you can see from the graph below, we have less words, but the words are much more interesting.
+
+```{r tokenization - word count plot (no stop words), message=FALSE}
+tokenized_tweets %>%
+  anti_join(stop_words) %>% #finds where tweet words overlap with predefined stop words, and removes them
+  count(word, sort = TRUE) %>%
+  rename(count = n) %>%
+  filter(count > 5) %>%
+  mutate(word = reorder(word, count)) %>%
+  ggplot(aes(x = count, y = word)) + 
+    geom_col() + 
+    labs(title = "Count of Words in CCIDM Tweets") + 
+    scale_x_continuous(breaks = seq(0, 50, 5))
+```
+
+There are many ways to visualize word counts, including word clouds as seen below.
+
+```{r tokenization - word cloud, message=FALSE}
+#install.packages('ggwordcloud')
+library('ggwordcloud')
+
+tokenized_tweets %>%
+  anti_join(stop_words) %>%
+  count(word, sort = TRUE) %>%
+  filter(n > 4) %>%
+  ggplot(aes(label = word, size = n, color = n)) + 
+    geom_text_wordcloud() + 
+    scale_size_area(max_size = 15) 
+```
+
+
+
