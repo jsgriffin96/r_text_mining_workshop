@@ -3,8 +3,8 @@ title: "Text Mining in R"
 author: "Jarrod Griffin"
 date: "1/14/2021"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -13,7 +13,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Importing Data
 
-Tweets from the CCIDM Twitter page (<https://twitter.com/CPP_CCIDM>) were downloaded using the snscrape python package. Data was in the 'json' format, so we need to use the 'rjson' package to import it. All hashtags and mentions were removed manually. I will also generate IDs for each tweet.
+Tweets from the CCIDM Twitter page (<https://twitter.com/CPP_CCIDM>) were downloaded using the snscrape python package. Data was in the 'json' format, so we need to use the 'rjson' package to import it. All hashtags were removed manually. I will also generate IDs for each tweet.
 
 ```{r importing_data, message=FALSE}
 #install.packages("rjson")
@@ -89,6 +89,99 @@ tokenized_tweets %>%
     geom_text_wordcloud() + 
     scale_size_area(max_size = 15) 
 ```
+
+
+##Sentiment Analysis
+
+When humans read text, we infer the emotional intent of the words. Sentiment analysis is the process of extracting these infered emotions from text. We can accomplish this by comparing the words in our text to words in many different sentiment lexicons. Lets take a look at some of these lexicons below. Some of these lexicons are subject to terms of use.
+
+```{r sentiment lexicons}
+get_sentiments("afinn")   #integer value for positive/negative
+get_sentiments("bing")    #positive/negative
+get_sentiments("nrc")     #emotions
+```
+There are thousands of words in each of the above lexicons. How do we see what words we have in our text overlap with what are in the lexicons? This can be accomplished by using the *inner_join()* function. Let's explore the three packages with some visualizations below.
+
+```{r sentiment innerjoin afinn, message=FALSE}
+tokenized_tweets %>%
+  group_by(tweet_id) %>%
+  inner_join(get_sentiments("afinn")) %>%
+  summarise(mean_sentiment = mean(value)) %>%
+  ggplot(aes(x = tweet_id, y = mean_sentiment)) + 
+    geom_col() + 
+    labs(title = 'Mean Sentiment by Tweet - Afinn Lexicon', x = "Tweet ID", y = 'Mean Sentiment') + 
+    scale_x_continuous(breaks = seq(1, 31)) +
+    scale_y_continuous(breaks = seq(-1, 3, 0.5))
+```
+
+Looking at the chart above, we notice that it appears two tweets have a mean sentiment of 0. This is actually incorrect. Only the third tweet has a mean sentiment of 0, tweet 4 actually should be reported as an NA value. This is because there was no overlap between tweet 4 and the lexicon we used, meaning that no words were found to have any sentiment according to the Afinn lexicon. Let's confirm this below.
+
+```{r sentiment innerjoin afinn tweet 4 example, message=FALSE}
+print("Tweet 4 words found in the Afinn lexicon should appear below: ")
+tokenized_tweets %>%
+  filter(tweet_id==4)%>%
+  inner_join(get_sentiments("afinn")) 
+
+```
+
+No words were found in the 4th tweet AND the Afinn lexicon.
+
+Lets take a look at the bing lexicon. The bing lexicon groups words into two sentiment categories, positive and negative. Lets plot our tweets into a word cloud to get a nice visual of our data.
+
+```{r sentiment bing wordcloud, message=FALSE}
+#install.packages('reshape2')
+#install.packages('wordcloud')
+library('reshape2')
+library('wordcloud')
+
+tokenized_tweets %>%
+  inner_join(get_sentiments("bing")) %>%
+  count(word, sentiment, sort = TRUE) %>%
+  acast(word ~ sentiment, value.var = "n", fill = 0) %>% #cast into matrix, grouped by neg and pos
+  comparison.cloud(colors = c("red", "green"),
+                   max.words = 20)
+
+```
+
+## Term Frequency(tf) and Inverse Document Frequency (idf)
+
+A common question in text mining is: What is this text about? There are a few ways to determine this, two of which are Term Frequency and Inverse Document Frequency.
+
+* Term Frequency was discussed previously, and is a more simple way to determine what a text is about.
+* Inverse Document Frequency is the implementation for Zipf's law stating that the frequency that a word appears is inversely pororptional to its rank/importance. That is, the less a word shows up in a text, higher its importance rank.
+
+Below we see the standard tf (Term Frequency) for all of the CCIDM tweets.  
+```{r tf, message=FALSE}
+tokenized_tweets %>%
+  count(word, sort = TRUE) %>%
+  rename(count = n)
+```
+
+
+Below we see the entire TF-IDF dataframe. We are most interested in the *tf_idf* column, as that will provide us the weighted rank/importance for our text.
+
+```{r tf-idf, message=FALSE}
+tweet_tf_idf <- tokenized_tweets %>%
+  count(word, tweet_id, sort = TRUE) %>%
+  rename(count = n) %>%
+  bind_tf_idf(word, tweet_id, count)
+
+head(tweet_tf_idf)
+```
+The above data frame does not really show us the most important words. Lets group the words from each tweet and order them to find the most important words.
+```{r tf-idf wordcloud, message=FALSE}
+tweet_tf_idf %>%
+  select(word, tweet_id, tf_idf) %>%
+  group_by(tweet_id) %>%
+  slice_max(order_by = tf_idf, n = 5, with_ties=FALSE) %>% #takes top 5 words from each tweet
+  filter(tweet_id < 5) %>% #just look at 4 tweets
+  ggplot(aes(label = word, size=tf_idf)) + 
+    geom_text_wordcloud() + 
+    facet_grid(rows = vars(tweet_id))
+```
+
+
+
 
 
 
