@@ -154,7 +154,8 @@ Below we see the standard tf (Term Frequency) for all of the CCIDM tweets.
 ```{r tf, message=FALSE}
 tokenized_tweets %>%
   count(word, sort = TRUE) %>%
-  rename(count = n)
+  rename(count = n) %>%
+  head()
 ```
 
 
