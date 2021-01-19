@@ -169,20 +169,98 @@ tweet_tf_idf <- tokenized_tweets %>%
 
 head(tweet_tf_idf)
 ```
-The above data frame does not really show us the most important words. Lets group the words from each tweet and order them to find the most important words.
-```{r tf-idf wordcloud, message=FALSE}
+Simple counts of word frequencies can be misleading and not helpful in getting a good idea of your data. Lets demonstrate that below. 
+
+```{r tf-idf wordcloud all, message=FALSE, warning=FALSE}
+tweet_tf_idf %>%
+  select(word, tweet_id, tf_idf, count) %>%
+  group_by(tweet_id) %>%
+  slice_max(order_by = count, n = 6, with_ties=FALSE) %>% #takes top 5 words from each tweet
+  filter(tweet_id < 6) %>% #just look at 5 tweets
+  ggplot(aes(label = word)) + 
+    geom_text_wordcloud() + 
+    facet_grid(rows = vars(tweet_id))
+```
+
+```{r tf-idf wordcloud important, message=FALSE, warning=FALSE}
 tweet_tf_idf %>%
   select(word, tweet_id, tf_idf) %>%
   group_by(tweet_id) %>%
-  slice_max(order_by = tf_idf, n = 5, with_ties=FALSE) %>% #takes top 5 words from each tweet
-  filter(tweet_id < 5) %>% #just look at 4 tweets
-  ggplot(aes(label = word, size=tf_idf)) + 
+  slice_max(order_by = tf_idf,n = 6, with_ties=FALSE) %>% #takes top 5 words from each tweet
+  filter(tweet_id < 6) %>% #just look at 5 tweets
+  ggplot(aes(label = word)) + 
     geom_text_wordcloud() + 
     facet_grid(rows = vars(tweet_id))
 ```
 
 
+## Relashionships Between Words
+
+So far we have only looked at words individually, and how those words relate to sentiment or frequency in doccuments. But what if we want to know about how words relate to each other in a text? This can be accomplished though n-grams, where n is a number. 
+
+Previously we had tokenized by single words, but we can also tokenize by n number of words. Lets create bigrams from all of the tweets, then count and sort them.
+
+```{r n-grams}
+tweets_bigram <- tweets %>%
+  unnest_tokens(bigram, tweet, token = 'ngrams', n = 2) 
+
+head(tweets_bigram)
+```
+
+As you can see from the dataframe above, some of the bigrams contain stop words that do not add much value. Lets remove the stop words. We will do this by first separating the bigram column into two seperate colums named 'word1' and 'word2'. We will then use two filter functions to remove the stop words.
+
+```{r bi-grams}
+tweets_bigram <- tweets_bigram %>%
+  separate(bigram, c("word1", "word2"), sep = " ") %>%#separates on whitespace
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word)
+
+head(tweets_bigram)
+```
 
 
+We can now count the bigrams and look at that output.
+
+
+```{r bi-gram counts}
+bigram_counts <- tweets_bigram %>%
+  count(word1, word2, sort = TRUE)
+
+head(bigram_counts)
+```
+
+
+Just like before, we can create a tf-idf with n-grams as well. Lets do that now. 
+
+```{r bi-gram if-idf}
+tweets %>%
+  unnest_tokens(bigram, tweet, token = 'ngrams', n = 2) %>%
+  count(tweet_id, bigram) %>%
+  bind_tf_idf(bigram, tweet_id, n) %>%
+  group_by(tweet_id) %>%
+  arrange(tweet_id, desc(tf_idf)) %>%
+  head()
+```
+
+As you can see from above, many of the tf-idf values are identical. This is due in part to the small sample text size of a tweet.
+
+Lets take a visual look at word relationships between ALL of the CCIDM tweets by utilizing a network chart.
+
+```{r bi-gram relationships, message=FALSE}
+#install.packages('igraph')
+#install.packages('ggraph')
+library('igraph')
+library('ggraph')
+bi_graph <- bigram_counts %>%
+  filter(n > 2) %>% 
+  graph_from_data_frame()
+
+ggraph(bi_graph, layout = "fr") +
+  geom_edge_link() +
+  geom_node_point() +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1)
+```
+
+As you can see from above, many names and other information has been mined from the CCIDM twitter data!
 
 
