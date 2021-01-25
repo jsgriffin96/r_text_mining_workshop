@@ -32,7 +32,7 @@ head(tweets)
 
 ## Tidy Text Format and Tokenization
 
-The tidy text format takes after Hadley Wickham's definition of tidy data, which is that: 
+The tidy text format takes after Hadley Wickham's definition of tidy data, which is that:
 
 * Each variable is a column
 * Each observation is a row
@@ -126,6 +126,14 @@ tokenized_tweets %>%
 
 No words were found in the 4th tweet AND the Afinn lexicon.
 
+Lets also take a look at tweet_id number 28 as it seems to have some negative sentiment, according to the Afinn lexicon.
+
+```{r 28th tweet}
+tweets[28, 1]
+```
+As you can see from above, the tweet isn't really negative. The above highlights some possible errors when using lexicons. 
+
+
 Lets take a look at the bing lexicon. The bing lexicon groups words into two sentiment categories, positive and negative. Lets plot our tweets into a word cloud to get a nice visual of our data.
 
 ```{r sentiment bing wordcloud, message=FALSE}
@@ -193,10 +201,11 @@ tweet_tf_idf %>%
     facet_grid(rows = vars(tweet_id))
 ```
 
+As you can see from above, the second set of word clouds provide us with much more interesting and relevant words. The second set of word clouds more accurately displays the important words in the tweet.
 
-## Relashionships Between Words
+## Relationship Between Words
 
-So far we have only looked at words individually, and how those words relate to sentiment or frequency in doccuments. But what if we want to know about how words relate to each other in a text? This can be accomplished though n-grams, where n is a number. 
+So far we have only looked at words individually, and how those words relate to sentiment or frequency in document. But what if we want to know about how words relate to each other in a text? This can be accomplished though n-grams, where n is a number. 
 
 Previously we had tokenized by single words, but we can also tokenize by n number of words. Lets create bigrams from all of the tweets, then count and sort them.
 
@@ -262,5 +271,66 @@ ggraph(bi_graph, layout = "fr") +
 ```
 
 As you can see from above, many names and other information has been mined from the CCIDM twitter data!
+
+## Topic Modeling
+It is common to have a collection of documents such as news articles or social media posts that we want to divide into topics. In other words, we want to know the main topic in a document. This can be accomplished through *topic modeling*. 
+Here, we will look at topic modeling throught the *Latent Dirichlet allocation (LDA)* method.
+
+LDA has two main principles:
+
+* Every document is a mixture of topics
+* Every topic is a mixture of words
+
+A common example of this is if we assume there are two main topics in news, politics and entertainment. The politics topic will have words like *elected*, or *government* whereas the entertainment topic may have words like *movie*, or *actor*. However, some words may overlap, like *award* or *budget*. LDA finds the mixture of words in each topic as well as finding the mixture of topics that describes each document. Lets demonstrate with an example below:
+
+First we start by actually creating our LDA model. The *LDA()* function requires a DocumentTermMatrix as an input which we can create from our TF-IDF we have previously created. Below, we also use the *anti_join(stop_words)* code to remove all stop words from our TF-IDF. We can convert our TF-IDF into a DocumentTermMatrix through the *cast_dtm()* function. 
+
+```{r creating LDA, message=FALSE}
+#install.packages('topicmodels')
+#install.packages('tm')
+library('topicmodels')
+library('tm')
+
+#parameters
+num_topics=3
+top_n_to_get=10
+
+tweets_lda <- tweet_tf_idf %>%
+  anti_join(stop_words) %>%
+  cast_dtm(document = tweet_id, term =  word, value =  count) %>%
+  LDA(k=num_topics) 
+
+tweets_lda
+```
+After we create our LDA topic model, we can use the *tidy()* function to convert the LDA into an easy to understand and use tibble. The beta column produced is the per-topic-per-word probability which is the probability of the term being generated from a topic.  
+```{r creating tidy topics}
+tweet_topics <- tidy(tweets_lda) #beta is per-topic-per-word probabilities
+  
+head(tweet_topics)
+```
+Great, now we have a simple and easy to use tibble! We have the probability of each word appearing in each topic. Now we will work to visualize the words in each topic. It will be most helpful here to find the top 10 or so words from each topic so that we can get a better understanding of the topic. In order to do this, we need to first get the top 10 words for each topic. This can be accomplished through use of some dplyr verbs below.
+```{r top terms}
+tweet_topics_top_terms <- tweet_topics %>%
+  group_by(topic) %>%
+  top_n(top_n_to_get, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+head(tweet_topics_top_terms)
+```
+
+Now that we have our top 10 terms per topic, we can visualize them in order to get a better grasp on what each topic is about.  
+
+```{r top terms visualization}
+tweet_topics_top_terms %>%
+  mutate(term = reorder_within(term, beta, topic)) %>%
+  ggplot(aes(beta, term, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  scale_y_reordered()
+```
+
+
+
 
 
