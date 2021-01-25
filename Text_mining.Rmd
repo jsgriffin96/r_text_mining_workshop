@@ -32,7 +32,7 @@ head(tweets)
 
 ## Tidy Text Format and Tokenization
 
-The tidy text format takes after Hadley Wickham's definition of tidy data, which is that:
+The tidy text format takes after Hadley Wickham's definition of tidy data, which is that: 
 
 * Each variable is a column
 * Each observation is a row
