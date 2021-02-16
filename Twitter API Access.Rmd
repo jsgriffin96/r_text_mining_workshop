@@ -1,0 +1,112 @@
+---
+title: "Connecting to the Twitter API"
+author: "Jarrod Griffin"
+date: "2/14/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Applying for a Twitter Developer Account
+In order to access Twitter's API, you must apply for a Twitter Developer Account. You can use your own personal Twitter account, or create a new one for development purposes. 
+
+First, visit this link to begin the developer account process: [https://developer.twitter.com/en/apply-for-access](https://developer.twitter.com/en/apply-for-access) 
+
+Then, click the blue "Apply for a developer account" button. You should be prompted to sign into your Twitter account if not already logged in.
+
+You should then be directed to a page that asks "Which best describes you?" with the results listed below. Select the best option for your situation.
+ 
+ * Professional
+ * Hobbyist
+ * Academic
+
+We will now assume you have chosen *Academic*. You should now be given four options listed below. Again select the most relevant option for you (this will most likely be *Student*).
+ 
+ * Academic researcher
+ * Teacher
+ * Student
+ * Something else
+
+You will not be taken to the standard application for developer accounts. The first page should consist of basic information about yourself.
+
+After clicking *next*, you will be taken to the *Intended use* page. Here you will need to input some information regarding what you will be using the API access for. This can be different for every project and specific answers will not be provided here.
+
+After clicking *next* again, you should be taken to a page to review your application. After clicking *next* one more time, you should be taken to the Terms of Use. Read through them and click agree/accept. 
+
+After submitting your application it may take a few days to be verified, but it will most likely be instant. You may also need to check your email for verification. 
+
+Once approved, you should be prompted to create an project/app. We need to do this to gain access to the API key. Give the project and app whatever names make sense for your use case. Keep track of the app name you create.
+
+After creating the project/app, you should be prompted with an *API key* and *API key secret*. Store these two keys in a text document or somewhere else as you will not have access to these keys again. If you do lose the keys, you will have to regenerate new ones.
+
+Now we can move onto R!
+
+## Installing and Setting Up the Rtweet package.
+
+In the code block below, input your *API key*, *API key secret*, *Access token*,*Access token secret*, and *App name*. The values below are fakes/random.
+
+If you need to find the above keys again, navigate to your app and select the *Keys and tokens* tab at the top middle of your page. Then click the regenerate button next to *API key & secret* and save the keys. Then click regenerate next to *Access token & secret* and save the keys. 
+```{r cars}
+#install.packages('rtweet')
+#install.packages('httpuv')
+library('rtweet')
+library('httpuv')
+
+api_key <- "8GwQcGEWxLAbcHvJBbdlqu7Xf"
+api_secret_key <- "tzsZNg9rvDNqrCA3Btc4Gka9iv6W9NkSxo2WfSwsGZIHm8Rnk3"
+app_name <- "CenterScrape"
+access_token <- "635181580-sD7F6vWdH7gt8kPHh4i90HolDX4aWZNhFZ8Y9DV7"
+access_token_secret<-"ZmtuRto1MYnSuUwkPeANh8MVkFcjCtA4YMv0MNooZUhvE"
+
+token <- create_token(
+  app = app_name,
+  consumer_key = api_key,
+  consumer_secret = api_secret_key,
+  access_token = access_token,
+  access_secret = access_token_secret
+)
+```
+
+We can verify the above worked through the below command.
+
+```{r token check}
+get_token()
+```
+If you see something like the above output, this should mean you have succeeded. Great, now we can try to access the API!
+
+## Getting a Specific Users Tweets
+
+We will start by getting all tweets from the @CPP_CCIDM user (the Center's Twitter). This can be accomplished with the *get_timelines()* function. As you can see from the column names below, we have access to some interesting data. Most functions return way more data than we will need for this example, so I will use the *select()* function to just view some example columns.
+```{r user search}
+timelineDF <- get_timelines('CPP_CCIDM')
+colnames(timelineDF)
+```
+Lets just look at the specific tweet, username, source, and if the tweet was a retweet. 
+```{r tweets, message=FALSE, warning=FALSE}
+library('tidyverse')
+tweets <- timelineDF %>% select(text, screen_name, source, is_retweet)
+tweets
+```
+
+## Searching for a hashtag
+We can search for tweets that contain either text or hashtags through the below function.
+```{r hashtags}
+calPoly <- search_tweets("#calpolypomona", n = 100, include_rts = FALSE)
+calPoly %>% select(text, screen_name, source, is_retweet)
+```
+
+## Stream in tweets
+It is also possible to live stream in tweets. We use #daytona500 as it was an active hashtag when this was created.
+
+```{r streaming}
+streamed <- stream_tweets("#daytona500",
+                          timeout = 60) #will stream for 60 sec
+
+streamed %>% select(text, screen_name, source, is_retweet) %>% head()
+```
+
+
+
+
