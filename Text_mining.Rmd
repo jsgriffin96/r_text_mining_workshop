@@ -10,10 +10,35 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+Before we begin, please run the code below to install all packages we will be using today.
+```{r installing packages, message=FALSE, warning=FALSE}
+packages = c(
+  'rtweet',
+  'httpuv',
+  'tidyverse',
+  'rtweet',
+  'tidytext',
+  'ggwordcloud',
+  'reshape2',
+  'wordcloud',
+  'igraph',
+  'ggraph',
+  'topicmodels',
+  'tm'
+)
+
+package.check <- lapply( #by vikram
+  packages,
+  FUN = function(x) {
+    if (!require(x, character.only = TRUE)) {
+      install.packages(x, dependencies = TRUE)
+    }
+  }
+)
+```
+
 
 ```{r API access, include=FALSE}
-#install.packages('rtweet')
-#install.packages('httpuv')
 library('rtweet')
 library('httpuv')
 
@@ -40,19 +65,21 @@ Tweets from the CCIDM Twitter page (<https://twitter.com/CPP_CCIDM>) were downlo
 
 Let's use the *get_timelines()* function from the rtweet package to get all tweets on the CCIDM Twitter timeline. The function will return a lot of information, so lets just select some relevant columns. Our goal is to end up with just the text tweet data from the CCIDM twitter account, meaning we want to exclude retweets. We will also strip links from each tweet.
 ```{r user search, message=FALSE, warning=FALSE}
-#install.packages('tidyverse')
-#install.packages('rtweet')
 library('tidyverse')
 library('rtweet')
 timelineDF <- get_timelines('CPP_CCIDM')
 
 removeURL <- function(x) gsub("http[[:alnum:][:punct:]]*", "", x)
 
+numTweets <- timelineDF %>%
+  filter(is_retweet == FALSE) %>%
+  nrow()
+
 tweets <- timelineDF %>%
   filter(is_retweet == FALSE) %>%
   select(text) %>%
-  cbind(tweet_id = 35:1) %>%
-  rename(tweet = text) %>% 
+  cbind(tweet_id = numTweets:1) %>%
+  rename(tweet = text) %>%
   mutate(tweet = removeURL(tweet))
 
 head(tweets)
@@ -73,11 +100,11 @@ A token is defined as a **meaningful unit of text such as a word, sentence, para
 The process of splitting the text up into tokens is called **tokenization**, and can be done by using the *unnest_tokens()* function.
 
 ```{r tokenization}
-#install.packages('tidytext')
 library('tidytext')
 tokenized_tweets <- unnest_tokens(tweets, input = 'tweet', output = 'word')
 head(tokenized_tweets)
 ```
+
 ```{r tokenization - word count plot}
 tokenized_tweets %>%
   count(word, sort = TRUE) %>%
@@ -108,7 +135,6 @@ tokenized_tweets %>%
 There are many ways to visualize word counts, including word clouds as seen below.
 
 ```{r tokenization - word cloud, message=FALSE}
-#install.packages('ggwordcloud')
 library('ggwordcloud')
 
 tokenized_tweets %>%
@@ -140,7 +166,7 @@ tokenized_tweets %>%
   ggplot(aes(x = tweet_id, y = mean_sentiment)) + 
     geom_col() + 
     labs(title = 'Mean Sentiment by Tweet - Afinn Lexicon', x = "Tweet ID", y = 'Mean Sentiment') + 
-    scale_x_continuous(breaks = seq(1, 35)) +
+    scale_x_continuous(breaks = seq(1, numTweets)) +
     scale_y_continuous(breaks = seq(-1, 3, 0.5))
 ```
 
@@ -151,7 +177,6 @@ print("Tweet 4 words found in the Afinn lexicon should appear below: ")
 tokenized_tweets %>%
   filter(tweet_id==4)%>%
   inner_join(get_sentiments("afinn")) 
-
 ```
 
 No words were found in the 4th tweet AND the Afinn lexicon.
@@ -167,8 +192,6 @@ As you can see from above, the tweet isn't really negative. The above highlights
 Lets take a look at the bing lexicon. The bing lexicon groups words into two sentiment categories, positive and negative. Lets plot our tweets into a word cloud to get a nice visual of our data.
 
 ```{r sentiment bing wordcloud, message=FALSE}
-#install.packages('reshape2')
-#install.packages('wordcloud')
 library('reshape2')
 library('wordcloud')
 
@@ -178,14 +201,13 @@ tokenized_tweets %>%
   acast(word ~ sentiment, value.var = "n", fill = 0) %>% #cast into matrix, grouped by neg and pos
   comparison.cloud(colors = c("red", "green"),
                    max.words = 20)
-
 ```
 
 ## Term Frequency(tf) and Inverse Document Frequency (idf)
 
 A common question in text mining is: What is this text about? There are a few ways to determine this, two of which are Term Frequency and Inverse Document Frequency.
 
-* Term Frequency was discussed previously, and is a more simple way to determine what a text is about.
+* Term Frequency is the count of a token divided by the total number of tokens.
 * Inverse Document Frequency is the implementation for Zipf's law stating that the frequency that a word appears is inversely pororptional to its rank/importance. That is, the less a word shows up in a text, higher its importance rank.
 
 Below we see the standard tf (Term Frequency) for all of the CCIDM tweets.  
@@ -193,6 +215,8 @@ Below we see the standard tf (Term Frequency) for all of the CCIDM tweets.
 tokenized_tweets %>%
   count(word, sort = TRUE) %>%
   rename(count = n) %>%
+  mutate(total=sum(count))%>%
+  mutate(tf=count/total) %>%
   head()
 ```
 
@@ -286,8 +310,6 @@ As you can see from above, many of the tf-idf values are identical. This is due 
 Lets take a visual look at word relationships between ALL of the CCIDM tweets by utilizing a network chart.
 
 ```{r bi-gram relationships, message=FALSE}
-#install.packages('igraph')
-#install.packages('ggraph')
 library('igraph')
 library('ggraph')
 bi_graph <- bigram_counts %>%
@@ -301,6 +323,58 @@ ggraph(bi_graph, layout = "fr") +
 ```
 
 As you can see from above, many names and other information has been mined from the CCIDM twitter data!
+
+### Tri-Grams
+```{r tri-grams}
+tweets_trigram <- tweets %>%
+  unnest_tokens(trigram, tweet, token = 'ngrams', n = 3) %>%
+  separate(trigram, c("word1", "word2", "word3"), sep = " ") %>% #separates on whitespace
+  filter(!word1 %in% stop_words$word) %>%
+  filter(!word2 %in% stop_words$word) %>%
+  filter(!word3 %in% stop_words$word)
+
+head(tweets_trigram)
+```
+
+We can now count the trigrams and look at that output.
+
+
+```{r tri-gram counts}
+trigram_counts <- tweets_trigram %>%
+  count(word1, word2, word3, sort = TRUE)
+
+head(trigram_counts)
+```
+
+
+Just like before, we can create a tf-idf with the tri-grams. Lets do that now. 
+
+```{r tri-gram if-idf}
+tweets %>%
+  unnest_tokens(trigram, tweet, token = 'ngrams', n = 3) %>%
+  count(tweet_id, trigram) %>%
+  bind_tf_idf(trigram, tweet_id, n) %>%
+  group_by(tweet_id) %>%
+  arrange(tweet_id, desc(tf_idf)) %>%
+  head()
+```
+
+As you can see from above, many of the tf-idf values are identical. This is due in part to the small sample text size of a tweet.
+
+Lets take a visual look at word relationships between ALL of the CCIDM tweets by utilizing a network chart.
+
+```{r tri-gram relationships, message=FALSE}
+library('igraph')
+library('ggraph')
+tri_graph <- trigram_counts %>%
+  filter(n > 2) %>% 
+  graph_from_data_frame()
+
+ggraph(tri_graph, layout = "fr") +
+  geom_edge_link() +
+  geom_node_point() +
+  geom_node_text(aes(label = name), vjust = 1, hjust = 1)
+```
 
 ## Topic Modeling
 It is common to have a collection of documents such as news articles or social media posts that we want to divide into topics. In other words, we want to know the main topic in a document. This can be accomplished through *topic modeling*. 
@@ -316,8 +390,6 @@ A common example of this is if we assume there are two main topics in news, poli
 First we start by actually creating our LDA model. The *LDA()* function requires a DocumentTermMatrix as an input which we can create from our TF-IDF we have previously created. Below, we also use the *anti_join(stop_words)* code to remove all stop words from our TF-IDF. We can convert our TF-IDF into a DocumentTermMatrix through the *cast_dtm()* function. 
 
 ```{r creating LDA, message=FALSE}
-#install.packages('topicmodels')
-#install.packages('tm')
 library('topicmodels')
 library('tm')
 
