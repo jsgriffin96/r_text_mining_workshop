@@ -3,8 +3,8 @@ title: "Text Mining in R"
 author: "Jarrod Griffin"
 date: "1/14/2021"
 output:
-  html_document: default
   pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
