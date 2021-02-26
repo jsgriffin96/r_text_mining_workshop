@@ -62,7 +62,7 @@ token <- create_token(
 
 ## Importing Data
 
-Tweets from the CCIDM Twitter page (<https://twitter.com/CPP_CCIDM>) were downloaded using the Twitter API. If you do not have access to the Twitter API, see the *Twitter API Access* instructions.
+Tweets from the CCIDM Twitter page (<https://twitter.com/CPP_CCIDM>) were downloaded using the Twitter API. If you do not have access to the Twitter API, see the *Twitter API Access* instructions. If you do not want to create a developer account, uncomment and run the last line of code below. 
 
 Let's use the *get_timelines()* function from the rtweet package to get all tweets on the CCIDM Twitter timeline. The function will return a lot of information, so lets just select some relevant columns. Our goal is to end up with just the text tweet data from the CCIDM twitter account, meaning we want to exclude retweets. We will also strip links from each tweet. We can also generate a .csv of the tweets.
 ```{r user search, message=FALSE, warning=FALSE}
@@ -86,6 +86,8 @@ tweets <- timelineDF %>%
 write_csv(tweets, "tweets.csv")
 
 head(tweets)
+
+#tweets <- read_csv("https://raw.githubusercontent.com/jsgriffin96/r_text_mining_workshop/master/tweets.csv")
 ```
 
 ## Tidy Text Format and Tokenization
