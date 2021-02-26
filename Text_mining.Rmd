@@ -3,8 +3,8 @@ title: "Text Mining in R"
 author: "Jarrod Griffin"
 date: "1/14/2021"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
 ```{r setup, include=FALSE}
@@ -37,8 +37,9 @@ package.check <- lapply( #by vikram
 )
 ```
 
+If you have access to the Twitter API, replace the following token and key strings with the ones generated from your Twitter developer account.
 
-```{r API access, include=FALSE}
+```{r API access}
 library('rtweet')
 library('httpuv')
 
@@ -63,7 +64,7 @@ token <- create_token(
 
 Tweets from the CCIDM Twitter page (<https://twitter.com/CPP_CCIDM>) were downloaded using the Twitter API. If you do not have access to the Twitter API, see the *Twitter API Access* instructions.
 
-Let's use the *get_timelines()* function from the rtweet package to get all tweets on the CCIDM Twitter timeline. The function will return a lot of information, so lets just select some relevant columns. Our goal is to end up with just the text tweet data from the CCIDM twitter account, meaning we want to exclude retweets. We will also strip links from each tweet.
+Let's use the *get_timelines()* function from the rtweet package to get all tweets on the CCIDM Twitter timeline. The function will return a lot of information, so lets just select some relevant columns. Our goal is to end up with just the text tweet data from the CCIDM twitter account, meaning we want to exclude retweets. We will also strip links from each tweet. We can also generate a .csv of the tweets.
 ```{r user search, message=FALSE, warning=FALSE}
 library('tidyverse')
 library('rtweet')
@@ -81,6 +82,8 @@ tweets <- timelineDF %>%
   cbind(tweet_id = numTweets:1) %>%
   rename(tweet = text) %>%
   mutate(tweet = removeURL(tweet))
+
+write_csv(tweets, "tweets.csv")
 
 head(tweets)
 ```
